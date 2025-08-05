@@ -560,119 +560,164 @@
                 "tags": [
                     "Transactions"
                 ],
-                "summary": "Liste des transactions",
-                "description": "Récupère la liste paginée des transactions avec filtres",
-                "operationId": "c1be3ced5f0c40d6604343c109bd57f8",
+                "summary": "Lister les transactions",
+                "description": "Récupère une liste paginée des transactions avec filtres facultatifs : statut, type, téléphone client, dates, pagination.",
+                "operationId": "getTransactions",
                 "parameters": [
-                    {
-                        "name": "page",
-                        "in": "query",
-                        "description": "Numéro de page",
-                        "required": false,
-                        "schema": {
-                            "type": "integer",
-                            "default": 1
-                        }
-                    },
-                    {
-                        "name": "per_page",
-                        "in": "query",
-                        "description": "Nombre d'éléments par page",
-                        "required": false,
-                        "schema": {
-                            "type": "integer",
-                            "default": 15,
-                            "maximum": 100
-                        }
-                    },
                     {
                         "name": "status",
                         "in": "query",
-                        "description": "Filtrer par statut",
+                        "description": "Statut de la transaction (ex: pending, success, failed)",
                         "required": false,
                         "schema": {
                             "type": "string",
-                            "enum": [
-                                "FAILED",
-                                "CANCELLED",
-                                "EXPIRED",
-                                "SUCCESSFULL"
-                            ]
+                            "example": "success"
                         }
                     },
                     {
                         "name": "transaction_type",
                         "in": "query",
-                        "description": "Filtrer par type",
+                        "description": "Type de transaction (deposit ou withdrawal)",
                         "required": false,
                         "schema": {
                             "type": "string",
                             "enum": [
                                 "deposit",
                                 "withdrawal"
-                            ]
+                            ],
+                            "example": "deposit"
                         }
                     },
                     {
                         "name": "customer_phone",
                         "in": "query",
-                        "description": "Filtrer par téléphone client",
+                        "description": "Numéro de téléphone du client",
                         "required": false,
                         "schema": {
-                            "type": "string"
+                            "type": "string",
+                            "example": "670000000"
                         }
                     },
                     {
                         "name": "date_from",
                         "in": "query",
-                        "description": "Date de début (Y-m-d)",
+                        "description": "Date de début (format: YYYY-MM-DD)",
                         "required": false,
                         "schema": {
                             "type": "string",
-                            "format": "date"
+                            "format": "date",
+                            "example": "2025-07-01"
                         }
                     },
                     {
                         "name": "date_to",
                         "in": "query",
-                        "description": "Date de fin (Y-m-d)",
+                        "description": "Date de fin (format: YYYY-MM-DD)",
                         "required": false,
                         "schema": {
                             "type": "string",
-                            "format": "date"
+                            "format": "date",
+                            "example": "2025-07-29"
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "description": "Nombre d'éléments par page (max: 100)",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "example": 20
                         }
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "Liste des transactions",
+                        "description": "Liste paginée des transactions",
                         "content": {
                             "application/json": {
                                 "schema": {
                                     "properties": {
+                                        "current_page": {
+                                            "type": "integer",
+                                            "example": 1
+                                        },
                                         "data": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/components/schemas/Transaction"
+                                                "properties": {
+                                                    "id": {
+                                                        "type": "string",
+                                                        "format": "uuid",
+                                                        "example": "e1c18c7c-86d1-4bd0-a6a4-bc889e37aacf"
+                                                    },
+                                                    "entreprise_id": {
+                                                        "type": "string",
+                                                        "format": "uuid"
+                                                    },
+                                                    "wallet_id": {
+                                                        "type": "string",
+                                                        "format": "uuid"
+                                                    },
+                                                    "operator_id": {
+                                                        "type": "string",
+                                                        "format": "uuid"
+                                                    },
+                                                    "amount": {
+                                                        "type": "number",
+                                                        "format": "float",
+                                                        "example": 2000
+                                                    },
+                                                    "net_amount": {
+                                                        "type": "number",
+                                                        "format": "float",
+                                                        "example": 1950
+                                                    },
+                                                    "status": {
+                                                        "type": "string",
+                                                        "example": "success"
+                                                    },
+                                                    "transaction_type": {
+                                                        "type": "string",
+                                                        "example": "deposit"
+                                                    },
+                                                    "customer_phone": {
+                                                        "type": "string",
+                                                        "example": "670000000"
+                                                    },
+                                                    "currency_code": {
+                                                        "type": "string",
+                                                        "example": "XAF"
+                                                    },
+                                                    "created_at": {
+                                                        "type": "string",
+                                                        "format": "date-time",
+                                                        "example": "2025-07-29T14:45:00Z"
+                                                    }
+                                                },
+                                                "type": "object"
                                             }
                                         },
-                                        "current_page": {
-                                            "type": "integer"
+                                        "total": {
+                                            "type": "integer",
+                                            "example": 50
                                         },
                                         "last_page": {
-                                            "type": "integer"
+                                            "type": "integer",
+                                            "example": 5
                                         },
                                         "per_page": {
-                                            "type": "integer"
-                                        },
-                                        "total": {
-                                            "type": "integer"
+                                            "type": "integer",
+                                            "example": 10
                                         }
                                     },
                                     "type": "object"
                                 }
                             }
                         }
+                    },
+                    "500": {
+                        "description": "Erreur lors de la récupération des transactions"
                     }
                 }
             },
@@ -681,8 +726,8 @@
                     "Transactions"
                 ],
                 "summary": "Créer une nouvelle transaction",
-                "description": "Crée une nouvelle transaction de dépôt ou retrait",
-                "operationId": "55a58cbc098f861891b8e6343b78fdc1",
+                "description": "Permet de créer une transaction (dépôt ou retrait) pour une entreprise via un opérateur mobile.",
+                "operationId": "storeTransaction",
                 "requestBody": {
                     "required": true,
                     "content": {
@@ -690,62 +735,49 @@
                             "schema": {
                                 "required": [
                                     "entreprise_id",
-                                    "wallet_id",
-                                    "operator_id",
+                                    "operator_code",
                                     "transaction_type",
                                     "amount",
-                                    "currency_code",
                                     "customer_phone"
                                 ],
                                 "properties": {
                                     "entreprise_id": {
                                         "type": "string",
-                                        "format": "uuid"
-                                    },
-                                    "wallet_id": {
-                                        "type": "string",
-                                        "format": "uuid"
-                                    },
-                                    "operator_id": {
-                                        "type": "string",
-                                        "format": "uuid"
-                                    },
-                                    "user_id": {
-                                        "type": "string",
                                         "format": "uuid",
-                                        "nullable": true
+                                        "example": "c6a3eb17-1234-4db8-8a5b-7c9db62f0ee1"
+                                    },
+                                    "operator_code": {
+                                        "type": "string",
+                                        "example": "mtn_cm"
                                     },
                                     "transaction_type": {
                                         "type": "string",
                                         "enum": [
                                             "deposit",
                                             "withdrawal"
-                                        ]
+                                        ],
+                                        "example": "deposit"
                                     },
                                     "amount": {
                                         "type": "number",
-                                        "format": "decimal",
-                                        "minimum": 1
-                                    },
-                                    "currency_code": {
-                                        "type": "string",
-                                        "maxLength": 3,
-                                        "minLength": 3,
-                                        "example": "XAF"
+                                        "format": "float",
+                                        "example": 2500.75
                                     },
                                     "customer_phone": {
                                         "type": "string",
-                                        "example": "237600000000"
+                                        "example": "670000000"
                                     },
                                     "customer_name": {
                                         "type": "string",
+                                        "example": "Jean Dupont",
                                         "nullable": true
-                                    },
-                                    "api_key_used": {
-                                        "type": "string"
                                     },
                                     "metadata": {
                                         "type": "object",
+                                        "example": {
+                                            "order_id": "12345",
+                                            "description": "Paiement facture"
+                                        },
                                         "nullable": true
                                     }
                                 },
@@ -766,31 +798,49 @@
                                             "example": true
                                         },
                                         "message": {
-                                            "type": "string"
+                                            "type": "string",
+                                            "example": "Transaction créée avec succès"
                                         },
                                         "data": {
-                                            "$ref": "#/components/schemas/Transaction"
-                                        }
-                                    },
-                                    "type": "object"
-                                }
-                            }
-                        }
-                    },
-                    "422": {
-                        "description": "Erreur de validation",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "properties": {
-                                        "success": {
-                                            "type": "boolean",
-                                            "example": false
-                                        },
-                                        "message": {
-                                            "type": "string"
-                                        },
-                                        "errors": {
+                                            "properties": {
+                                                "transaction_id": {
+                                                    "type": "string",
+                                                    "format": "uuid",
+                                                    "example": "acde3bb0-1d2e-4c9b-bd40-90df0d02d7e3"
+                                                },
+                                                "status": {
+                                                    "type": "string",
+                                                    "example": "pending"
+                                                },
+                                                "amount": {
+                                                    "type": "number",
+                                                    "format": "float",
+                                                    "example": 2500.75
+                                                },
+                                                "net_amount": {
+                                                    "type": "number",
+                                                    "format": "float",
+                                                    "example": 2450.75
+                                                },
+                                                "currency": {
+                                                    "type": "string",
+                                                    "example": "XAF"
+                                                },
+                                                "reference": {
+                                                    "type": "string",
+                                                    "example": "TX123456789"
+                                                },
+                                                "wallet_balance": {
+                                                    "type": "number",
+                                                    "format": "float",
+                                                    "example": 10500
+                                                },
+                                                "created_at": {
+                                                    "type": "string",
+                                                    "format": "date-time",
+                                                    "example": "2025-07-29T14:45:00Z"
+                                                }
+                                            },
                                             "type": "object"
                                         }
                                     },
@@ -798,6 +848,12 @@
                                 }
                             }
                         }
+                    },
+                    "400": {
+                        "description": "Erreur de validation des données"
+                    },
+                    "500": {
+                        "description": "Erreur serveur lors de la création"
                     }
                 }
             }

@@ -27,7 +27,7 @@ class TransactionService
     {
         return DB::transaction(function () use ($request, $data) {
             // 1. Récupérer l'adresse IP et déterminer le pays
-            $ipAddress = '143.105.152.76';//request()->ip();
+            $ipAddress = request()->ip(); //'143.105.152.76';//
             $countryInfo = $this->getCountryFromIp($ipAddress);
 
             // 2. Vérifier si le pays est autorisé
