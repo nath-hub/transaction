@@ -15,10 +15,6 @@ use Illuminate\Routing\Controller as BaseController;
  *         email="n.taffot@elyft.tech"
  *     )
  * )
- * @OA\Server(
- *     url="http://localhost:8003",
- *     description="Transaction Service Server"
- * )
  *   @OA\Components(
  *      @OA\SecurityScheme(
  *          securityScheme="bearerAuth",
