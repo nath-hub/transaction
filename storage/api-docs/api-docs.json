@@ -1363,7 +1363,8 @@
                     "type": "string",
                     "enum": [
                         "test",
-                        "production"
+                        "prod",
+                        "live"
                     ],
                     "example": "test"
                 }

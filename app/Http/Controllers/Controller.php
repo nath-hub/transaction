@@ -56,7 +56,7 @@ use Illuminate\Routing\Controller as BaseController;
  *         in="header",
  *         required=true,
  *         description="Environnement d'exécution",
- *         @OA\Schema(type="string", enum={"test", "production"}, example="test")
+ *         @OA\Schema(type="string", enum={"test", "prod", "live"}, example="test")
  *     )
  * )
  * @OA\Security(
