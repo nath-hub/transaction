@@ -565,6 +565,18 @@
                 "operationId": "getTransactions",
                 "parameters": [
                     {
+                        "$ref": "#/components/parameters/X-API-Public-Key"
+                    },
+                    {
+                        "$ref": "#/components/parameters/X-API-Private-Key"
+                    },
+                    {
+                        "$ref": "#/components/parameters/X-API-UUID"
+                    },
+                    {
+                        "$ref": "#/components/parameters/X-API-Environment"
+                    },
+                    {
                         "name": "status",
                         "in": "query",
                         "description": "Statut de la transaction (ex: pending, success, failed)",
@@ -728,6 +740,20 @@
                 "summary": "Créer une nouvelle transaction",
                 "description": "Permet de créer une transaction (dépôt ou retrait) pour une entreprise via un opérateur mobile.",
                 "operationId": "storeTransaction",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/X-API-Public-Key"
+                    },
+                    {
+                        "$ref": "#/components/parameters/X-API-Private-Key"
+                    },
+                    {
+                        "$ref": "#/components/parameters/X-API-UUID"
+                    },
+                    {
+                        "$ref": "#/components/parameters/X-API-Environment"
+                    }
+                ],
                 "requestBody": {
                     "required": true,
                     "content": {
@@ -868,6 +894,18 @@
                 "operationId": "d3cdd853cedf9573aefc2a723439ea3c",
                 "parameters": [
                     {
+                        "$ref": "#/components/parameters/X-API-Public-Key"
+                    },
+                    {
+                        "$ref": "#/components/parameters/X-API-Private-Key"
+                    },
+                    {
+                        "$ref": "#/components/parameters/X-API-UUID"
+                    },
+                    {
+                        "$ref": "#/components/parameters/X-API-Environment"
+                    },
+                    {
                         "name": "id",
                         "in": "path",
                         "description": "ID de la transaction",
@@ -927,6 +965,18 @@
                 "description": "Met à jour les informations d'une transaction",
                 "operationId": "9c2ba9a5e076811add4e499e23c7db95",
                 "parameters": [
+                    {
+                        "$ref": "#/components/parameters/X-API-Public-Key"
+                    },
+                    {
+                        "$ref": "#/components/parameters/X-API-Private-Key"
+                    },
+                    {
+                        "$ref": "#/components/parameters/X-API-UUID"
+                    },
+                    {
+                        "$ref": "#/components/parameters/X-API-Environment"
+                    },
                     {
                         "name": "id",
                         "in": "path",
@@ -1008,6 +1058,18 @@
                 "description": "Supprime une transaction (soft delete recommandé)",
                 "operationId": "7b2e4abd7e56860a03ebce14790f2756",
                 "parameters": [
+                    {
+                        "$ref": "#/components/parameters/X-API-Public-Key"
+                    },
+                    {
+                        "$ref": "#/components/parameters/X-API-Private-Key"
+                    },
+                    {
+                        "$ref": "#/components/parameters/X-API-UUID"
+                    },
+                    {
+                        "$ref": "#/components/parameters/X-API-Environment"
+                    },
                     {
                         "name": "id",
                         "in": "path",
@@ -1261,6 +1323,51 @@
             }
         },
         "parameters": {
+            "X-API-Public-Key": {
+                "name": "X-API-Public-Key",
+                "in": "header",
+                "description": "Clé API publique",
+                "required": true,
+                "schema": {
+                    "type": "string",
+                    "example": "pk_test_1234567890abcdef"
+                }
+            },
+            "X-API-Private-Key": {
+                "name": "X-API-Private-Key",
+                "in": "header",
+                "description": "Clé API privée",
+                "required": true,
+                "schema": {
+                    "type": "string",
+                    "example": "sk_test_1234567890abcdef"
+                }
+            },
+            "X-API-UUID": {
+                "name": "X-API-UUID",
+                "in": "header",
+                "description": "UUID de l'entreprise",
+                "required": true,
+                "schema": {
+                    "type": "string",
+                    "format": "uuid",
+                    "example": "c6a3eb17-1234-4db8-8a5b-7c9db62f0ee1"
+                }
+            },
+            "X-API-Environment": {
+                "name": "X-API-Environment",
+                "in": "header",
+                "description": "Environnement d'exécution",
+                "required": true,
+                "schema": {
+                    "type": "string",
+                    "enum": [
+                        "test",
+                        "production"
+                    ],
+                    "example": "test"
+                }
+            },
             "AcceptHeader": {
                 "name": "Accept",
                 "in": "header",

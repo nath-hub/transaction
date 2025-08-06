@@ -11,8 +11,10 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
+
 class TransactionController extends Controller
 {
+
 
 
     private InternalHttpClient $httpClient;
@@ -32,6 +34,10 @@ class TransactionController extends Controller
      *     path="/api/transactions/operations",
      *     tags={"Transactions"},
      *     summary="Lister les transactions",
+     *     @OA\Parameter(ref="#/components/parameters/X-API-Public-Key"),
+     *     @OA\Parameter(ref="#/components/parameters/X-API-Private-Key"),
+     *     @OA\Parameter(ref="#/components/parameters/X-API-UUID"),
+     *     @OA\Parameter(ref="#/components/parameters/X-API-Environment"),
      *     description="Récupère une liste paginée des transactions avec filtres facultatifs : statut, type, téléphone client, dates, pagination.",
      *     operationId="getTransactions",
      *     @OA\Parameter(
@@ -145,6 +151,10 @@ class TransactionController extends Controller
      *     path="/api/transactions/operations",
      *     tags={"Transactions"},
      *     summary="Créer une nouvelle transaction",
+     *     @OA\Parameter(ref="#/components/parameters/X-API-Public-Key"),
+     *     @OA\Parameter(ref="#/components/parameters/X-API-Private-Key"),
+     *     @OA\Parameter(ref="#/components/parameters/X-API-UUID"),
+     *     @OA\Parameter(ref="#/components/parameters/X-API-Environment"),
      *     description="Permet de créer une transaction (dépôt ou retrait) pour une entreprise via un opérateur mobile.",
      *     operationId="storeTransaction",
      *     @OA\RequestBody(
@@ -232,6 +242,10 @@ class TransactionController extends Controller
      *     path="/api/transactions/operations/{id}",
      *     tags={"Transactions"},
      *     summary="Détails d'une transaction",
+     *     @OA\Parameter(ref="#/components/parameters/X-API-Public-Key"),
+     *     @OA\Parameter(ref="#/components/parameters/X-API-Private-Key"),
+     *     @OA\Parameter(ref="#/components/parameters/X-API-UUID"),
+     *     @OA\Parameter(ref="#/components/parameters/X-API-Environment"),
      *     description="Récupère les détails d'une transaction spécifique",
      *     @OA\Parameter(
      *         name="id",
@@ -271,6 +285,10 @@ class TransactionController extends Controller
      *     path="/api/transactions/operations/{id}",
      *     tags={"Transactions"},
      *     summary="Mettre à jour une transaction",
+     *     @OA\Parameter(ref="#/components/parameters/X-API-Public-Key"),
+     *     @OA\Parameter(ref="#/components/parameters/X-API-Private-Key"),
+     *     @OA\Parameter(ref="#/components/parameters/X-API-UUID"),
+     *     @OA\Parameter(ref="#/components/parameters/X-API-Environment"),
      *     description="Met à jour les informations d'une transaction",
      *     @OA\Parameter(
      *         name="id",
@@ -333,6 +351,10 @@ class TransactionController extends Controller
      *     path="/api/transactions/operations/{id}",
      *     tags={"Transactions"},
      *     summary="Supprimer une transaction",
+     *     @OA\Parameter(ref="#/components/parameters/X-API-Public-Key"),
+     *     @OA\Parameter(ref="#/components/parameters/X-API-Private-Key"),
+     *     @OA\Parameter(ref="#/components/parameters/X-API-UUID"),
+     *     @OA\Parameter(ref="#/components/parameters/X-API-Environment"),
      *     description="Supprime une transaction (soft delete recommandé)",
      *     @OA\Parameter(
      *         name="id",
