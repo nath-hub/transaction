@@ -60,7 +60,7 @@ use Illuminate\Routing\Controller as BaseController;
  *     )
  * )
  * @OA\Security(
- * {"bearerAuth": {}}
+ *      {"bearerAuth": {}}
  *    )
  * @OA\Parameter(
  *     parameter="AcceptHeader",
