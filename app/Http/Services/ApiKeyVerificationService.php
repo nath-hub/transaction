@@ -34,7 +34,7 @@ class ApiKeyVerificationService
                 'public_key' => $data['public_key'],
                 'private_key' => $data['private_key'],
                 'environment' => $data['environment'],
-                'uuid' => $data['uuid'], 
+                'uuid' => $data['uuid'],
                 'timestamp' => time()
             ];
 
@@ -51,13 +51,13 @@ class ApiKeyVerificationService
                 return $response['data'];
             }
 
-            return response()->json([
+            return [
+                'valid' => false,
                 'error' => 'Failed to create order',
-                'details' => $response['error']
-            ], $response['status_code']);
-
-         
-          
+                'error_code' => 'API_VERIFICATION_FAILED',
+                'details' => $response['error'],
+                'status_code' => $response['status_code']
+            ];
 
         } catch (\Exception $e) {
             Log::error('API Key verification failed', [
