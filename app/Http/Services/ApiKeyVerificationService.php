@@ -7,8 +7,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 class ApiKeyVerificationService
-{
-    // private $httpClient;
+{ 
     private InternalHttpClient $httpClient;
     private $apiKeysServiceUrl = "http://127.0.0.1:8002";
     private $cache = null;
@@ -18,11 +17,7 @@ class ApiKeyVerificationService
         $bearerToken = request()->bearerToken();
         $this->httpClient = new InternalHttpClient($bearerToken);
     }
-    // {
-    //     $this->httpClient = $httpClient;
-    //     $this->apiKeysServiceUrl = rtrim($apiKeysServiceUrl, '/');
-    //     $this->cache = $cache;
-    // }
+ 
 
     public function verifyApiKeys($request, $data)
     {

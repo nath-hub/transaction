@@ -124,10 +124,9 @@ class CommissionSettingController extends Controller
             'transaction_type' => 'required|in:deposit,withdrawal',
             'commission_type' => 'nullable|in:percentage,fixed',
             'commission_value' => 'required|numeric|min:0',
-            'min_amount' => 'required|numeric|min:0',
+            'min_amount' => 'nullable|numeric|min:0',
             'max_amount' => 'nullable|numeric|gte:min_amount',
-            'is_active' => 'boolean',
-            'created_by' => 'nullable|uuid|exists:users,id',
+            'is_active' => 'boolean', 
         ]);
         $data['id'] = (string) Str::uuid();
         if ($data['is_active']) {
@@ -135,6 +134,8 @@ class CommissionSettingController extends Controller
         } else {
             $data['is_active'] = 0;
         }
+
+        $data['created_by'] = auth()->user()->id;
 
         $commission = CommissionSetting::create($data);
         return response()->json($commission, 201);
