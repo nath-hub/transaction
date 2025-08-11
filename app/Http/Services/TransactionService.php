@@ -34,7 +34,7 @@ class TransactionService
             $authServiceUrl = config('services.services_user.url');
 
             $httpClient = new InternalHttpClient();
-
+            
              $country = $httpClient->get($request, $authServiceUrl, 'api/countries/code/'. $countryInfo['country_code'], ['read:users']);
 
             if (!$country) {
@@ -48,25 +48,14 @@ class TransactionService
                 if (!$operator) {
                     throw new Exception("Opérateur non trouvé ou inactif");
                 }
-            }
-
-            // return [$country, $operator];
-
-            // $country = $operator['data']['country'];
-
-            // if ($country->name !== $countryInfo['country_name']) {
-            //     throw new Exception("Pays non autorisé pour les transactions");
-            // }
-
-
-
-
+            } 
+            
             // 4. Récupérer la clé API depuis les headers
             $apiKey = request()->header('X-API-Public-Key');
             if (!$apiKey) {
                 throw new Exception("Clé API manquante");
             }
-
+            
             // 5. Calculer les commissions
             $commissions = $this->calculateCommissions(
                 $data['amount'],
@@ -136,10 +125,7 @@ class TransactionService
                 'reference' => $this->generateReference(),
                 'created_by' => $data['user_id'] ?? null
             ]);
-
-             Log::info($commissions['commission']);
-              Log::info($commissions['commission']->id);
-              Log::info($commissions['commission']['id']);
+ 
 
               // Snapshot de la configuration utilisée
             $configSnapshot = [
