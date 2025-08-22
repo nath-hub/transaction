@@ -1,8 +1,7 @@
 <?php
 
 use App\Http\Controllers\CommissionSettingController;
-use App\Http\Controllers\TransactionController;
-use App\Http\Controllers\WalletController;
+use App\Http\Controllers\TransactionController; 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -23,7 +22,7 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
 
 Route::prefix('transactions')->group(function () {
     Route::middleware('api_key_auth')->prefix('operations')->group(function () {
-        Route::post('/', [TransactionController::class, 'store']); //->middleware('auth:sanctum');
+        Route::post('/', [TransactionController::class, 'store']);
         Route::get('/', [TransactionController::class, 'index']);
         Route::get('/{id}', [TransactionController::class, 'show']);
         Route::put('/{id}', [TransactionController::class, 'update']);
@@ -42,11 +41,6 @@ Route::prefix('transactions')->group(function () {
         Route::delete('/{id}', [CommissionSettingController::class, 'destroy']);
     });
 
-
-    Route::prefix('wallets')->group(function () {
-        Route::post('/', [WalletController::class, 'store'])->middleware('auth:sanctum');
-        Route::get('/{id}', [WalletController::class, 'show']);
-        Route::put('/{id}', [WalletController::class, 'update']);
-        Route::delete('/{id}', [WalletController::class, 'destroy']);
-    });
+    Route::get('getjobs', [TransactionController::class, 'getJobs']);
+ 
 });

@@ -4,11 +4,17 @@ namespace App\Http\Controllers;
 
 use App\Helpers\InternalHttpClient;
 use App\Http\Requests\StoreTransactionRequest;
+use App\Http\Services\OperatorService;
 use App\Models\Transaction;
 use App\Http\Services\TransactionService;
+use App\Jobs\CheckPaymentStatusJob;
+use App\Jobs\CheckTransactionStatusJobs;
+use App\Models\PaymentJobs;
 use Exception;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 
@@ -150,6 +156,7 @@ class TransactionController extends Controller
      * @OA\Post(
      *     path="/api/transactions/operations",
      *     tags={"Transactions"},
+     *     security={{"bearerAuth":{}}},
      *     summary="Créer une nouvelle transaction",
      *     @OA\Parameter(ref="#/components/parameters/X-API-Public-Key"),
      *     @OA\Parameter(ref="#/components/parameters/X-API-Private-Key"),
@@ -159,10 +166,11 @@ class TransactionController extends Controller
      *     operationId="storeTransaction",
      *     @OA\RequestBody(
      *         required=true,
-     *         @OA\JsonContent(
+     *         @OA\JsonContent( 
      *             required={"entreprise_id", "operator_code", "transaction_type", "amount", "customer_phone"},
      *             @OA\Property(property="entreprise_id", type="string", format="uuid", example="c6a3eb17-1234-4db8-8a5b-7c9db62f0ee1"),
      *             @OA\Property(property="operator_code", type="string", example="mtn_cm"),
+     *             @OA\Property(property="webhook_url", type="string", example="https://example.com"),
      *             @OA\Property(property="transaction_type", type="string", enum={"deposit", "withdrawal"}, example="deposit"),
      *             @OA\Property(property="amount", type="number", format="float", example=2500.75),
      *             @OA\Property(property="customer_phone", type="string", example="670000000"),
@@ -205,35 +213,35 @@ class TransactionController extends Controller
     {
 
 
-        try {
-            $request->validated();
+        // try {
+        $request->validated();
 
-            $transactionService = new TransactionService();
-            $result = $transactionService->createTransaction($request, $request->all());
+        $transactionService = new TransactionService();
+        return $result = $transactionService->createTransaction($request, $request->all());
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Transaction créée avec succès',
-                'data' => [
-                    'transaction_id' => $result['transaction']->id,
-                    'status' => $result['transaction']->status,
-                    'amount' => $result['transaction']->amount,
-                    'net_amount' => $result['transaction']->net_amount,
-                    'currency' => $result['transaction']->currency_code,
-                    'reference' => $result['wallet_movement']->reference,
-                    'wallet_balance' => $result['wallet']->balance,
-                    'created_at' => $result['transaction']->created_at
-                ]
-            ], 201);
+        return response()->json([
+            'success' => true,
+            'message' => 'Transaction créée avec succès',
+            'data' => [
+                'transaction_id' => $result['transaction']->id,
+                'status' => $result['transaction']->status,
+                'amount' => $result['transaction']->amount,
+                'net_amount' => $result['transaction']->net_amount,
+                'currency' => $result['transaction']->currency_code,
+                'reference' => $result['wallet_movement']->reference,
+                'wallet_balance' => $result['wallet']->balance,
+                'created_at' => $result['transaction']->created_at
+            ]
+        ], 201);
 
 
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Erreur lors de la création de la transaction',
-                'error' => $e->getMessage()
-            ], 500);
-        }
+        // } catch (\Exception $e) {
+        //     return response()->json([
+        //         'success' => false,
+        //         'message' => 'Erreur lors de la création de la transaction',
+        //         'error' => $e->getMessage()
+        //     ], 500);
+        // }
     }
 
 
@@ -479,5 +487,26 @@ class TransactionController extends Controller
             'success' => true,
             'message' => 'Transaction relancée avec succès'
         ]);
+    }
+
+
+    function getJobs()
+    {
+        $trans = Transaction::where('id', 'd188408c-e360-49bb-b0c1-8d57bd31bf47')->first();
+        // $op = new OperatorService();
+
+        // $om = "OM";
+
+        // return $op->checkPaymentStatus($om, $trans);
+        
+        CheckTransactionStatusJobs::dispatch($trans->id);
+
+        // Retourner une réponse JSON valide
+        return response()->json([
+            'message' => 'Job de vérification dispatché avec succès',
+            'transaction_id' => $trans->id,
+            'status' => $trans->status
+        ], 202);
+ 
     }
 }

@@ -3,12 +3,15 @@
 namespace App\Http\Services;
 
 use App\Helpers\InternalHttpClient;
+use App\Jobs\CheckPaymentStatusJob;
+use App\Jobs\CheckTransactionStatusJobs;
 use App\Models\Transaction;
 use App\Models\CompanyWallet;
 use App\Models\WalletMovement;
 use App\Models\Operator;
 use App\Models\Country;
 use App\Models\CommissionSetting;
+use App\Models\PaymentJobs;
 use App\Models\TransactionCommissions;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -20,6 +23,7 @@ use InternalIterator;
 
 class TransactionService
 {
+
     /**
      * Créer une nouvelle transaction
      */
@@ -34,8 +38,8 @@ class TransactionService
             $authServiceUrl = config('services.services_user.url');
 
             $httpClient = new InternalHttpClient();
-            
-             $country = $httpClient->get($request, $authServiceUrl, 'api/countries/code/'. $countryInfo['country_code'], ['read:users']);
+
+            $country = $httpClient->get($request, $authServiceUrl, 'api/countries/code/' . $countryInfo['country_code'], ['read:users']);
 
             if (!$country) {
                 throw new Exception("Pays non autorisé pour les transactions");
@@ -49,13 +53,13 @@ class TransactionService
                     throw new Exception("Opérateur non trouvé ou inactif");
                 }
             } 
-            
+
             // 4. Récupérer la clé API depuis les headers
             $apiKey = request()->header('X-API-Public-Key');
             if (!$apiKey) {
                 throw new Exception("Clé API manquante");
             }
-            
+
             // 5. Calculer les commissions
             $commissions = $this->calculateCommissions(
                 $data['amount'],
@@ -69,7 +73,7 @@ class TransactionService
                 $country['data']['id'],
                 $country['data']['code']
             );
- 
+
 
             // 7. Vérifier les limites du portefeuille
             $this->checkWalletLimits($wallet, $data['amount'], $data['transaction_type']);
@@ -89,9 +93,21 @@ class TransactionService
                 $movementType = 'debit';
             }
 
+            $operatorService = new OperatorService();
+
+
+            // Initier le paiement avec l'opérateur
+            $paymentResult = $operatorService->initiatePayment(
+                $operator['data']['code'],
+                $data['amount'],
+                $data['customer_phone'],
+            );
+ 
             // 9. Créer la transaction
             $transaction = Transaction::create([
                 'id' => Str::uuid(),
+                'access_token' => $paymentResult['token'],
+                'payToken' => $paymentResult['response']['data']['payToken'],
                 'entreprise_id' => $data['entreprise_id'],
                 'wallet_id' => $wallet->id,
                 'operator_id' => $operator['data']['id'],
@@ -102,18 +118,19 @@ class TransactionService
                 'operator_commission' => $commissions['operator_commission'],
                 'internal_commission' => $commissions['internal_commission'],
                 'net_amount' => $netAmount,
-                'status' => 'FAILED', // Par défaut, sera mis à jour après traitement PENDING
+                'status' => $paymentResult['response']['data']['status'], // Par défaut, sera mis à jour après traitement PENDING
                 'customer_phone' => $data['customer_phone'],
                 'customer_name' => $data['customer_name'] ?? null,
+                'webhook_url' => $data['webhook_url'],
                 'initiated_at' => now(),
                 'api_key_used' => $apiKey,
                 'ip_address' => $ipAddress,
                 'user_agent' => request()->userAgent(),
-                'metadata' => json_encode($data['metadata'] ?? [])
+                'metadata' => json_encode(['message' => $paymentResult['response']['data']['inittxnmessage'] ?? null,]),
             ]);
 
             // 10. Créer le mouvement de portefeuille
-            $walletMovement = WalletMovement::create([
+            WalletMovement::create([
                 'id' => Str::uuid(),
                 'wallet_id' => $wallet->id,
                 'transaction_id' => $transaction->id,
@@ -125,21 +142,21 @@ class TransactionService
                 'reference' => $this->generateReference(),
                 'created_by' => $data['user_id'] ?? null
             ]);
- 
 
-              // Snapshot de la configuration utilisée
+
+            // Snapshot de la configuration utilisée
             $configSnapshot = [
-                'operator_rate' => $commissions['commission']->commission_value, 
-                'operator_value' => $commissions['operator_commission'], 
+                'operator_rate' => $commissions['commission']->commission_value,
+                'operator_value' => $commissions['operator_commission'],
                 'internal_value' => $commissions['internal_commission'],
                 'internal_rate' => 1,
                 'config_id' => $commissions['commission']->id,
                 'config_updated_at' => $commissions['commission']->updated_at
             ];
 
-           
 
-             // Préparer les détails du calcul
+
+            // Préparer les détails du calcul
             $calculationDetails = [
                 'base_amount' => $data['amount'],
                 'operator_calculation' => $commissions['operator_commission'],
@@ -149,8 +166,8 @@ class TransactionService
                 'calculated_at' => now()->toISOString()
             ];
 
-             // Créer l'enregistrement de commission
-            $transactionCommission = TransactionCommissions::create([
+            // Créer l'enregistrement de commission
+            TransactionCommissions::create([
                 'id' => Str::uuid(),
                 'transaction_id' => $transaction->id,
                 'operator_id' => $operator['data']['id'],
@@ -172,15 +189,31 @@ class TransactionService
 
             // 11. Mettre à jour le solde du portefeuille
             $wallet->update(['balance' => $balanceAfter]);
+ 
+            // Vérifier si le statut est pending
+            if ($paymentResult['response']['data']['status'] === 'PENDING') { 
 
-            // 12. Traiter la transaction avec l'opérateur
-            // $this->processWithOperator($transaction, $operator);
+                CheckTransactionStatusJobs::dispatch($transaction->id);
 
-            return [
-                'transaction' => $transaction,
-                'wallet_movement' => $walletMovement,
-                'wallet' => $wallet->fresh()
-            ];
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Paiement initié avec succès',
+                    'transaction_id' => $transaction->id,
+                    'status' => 'PENDING'
+                ]);
+            }
+
+            // Si le statut n'est pas pending, renvoyer directement
+            return response()->json([
+                'success' => true,
+                'transaction' => [
+                    'transaction_id' => $transaction->id,
+                    'status' => $transaction->status,
+                    'amount' => $transaction->amount,
+                    'operator' => $transaction->operator_id
+                ]
+            ]);
+ 
         });
     }
 
@@ -221,7 +254,6 @@ class TransactionService
             ->where('transaction_type', $transactionType)
             ->where('is_active', true)
             ->first();
- 
 
         if (!$commissionSetting) {
             return [
@@ -316,45 +348,28 @@ class TransactionService
     /**
      * Traiter la transaction avec l'opérateur
      */
-    private function processWithOperator($transaction, $operator)
+
+
+    public function getTransactionStatus($transactionId)
     {
-        try {
-            // Simuler l'appel à l'API de l'opérateur
-            // Cette partie dépendra de l'API spécifique de chaque opérateur
+        $transaction = Transaction::where('transaction_id', $transactionId)->first();
 
-            $response = Http::timeout(30)
-                ->withHeaders([
-                    'Authorization' => 'Bearer ' . $operator->api_key,
-                    'Content-Type' => 'application/json'
-                ])
-                ->post($operator->api_endpoint, [
-                    'amount' => $transaction->amount,
-                    'currency' => $transaction->currency_code,
-                    'customer_phone' => $transaction->customer_phone,
-                    'transaction_type' => $transaction->transaction_type,
-                    'reference' => $transaction->id
-                ]);
-
-            if ($response->successful()) {
-                $data = $response->json();
-
-                $transaction->update([
-                    'status' => $data['status'] ?? 'SUCCESSFULL',
-                    'operator_status' => $data['operator_status'] ?? null,
-                    'operator_transaction_id' => $data['transaction_id'] ?? null,
-                    'completed_at' => now()
-                ]);
-            } else {
-                $transaction->update([
-                    'status' => 'FAILED',
-                    'failure_reason' => 'Erreur API opérateur: ' . $response->body()
-                ]);
-            }
-        } catch (Exception $e) {
-            $transaction->update([
-                'status' => 'FAILED',
-                'failure_reason' => 'Exception: ' . $e->getMessage()
-            ]);
+        if (!$transaction) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Transaction non trouvée'
+            ], 404);
         }
+
+        return response()->json([
+            'success' => true,
+            'transaction' => [
+                'transaction_id' => $transaction->transaction_id,
+                'status' => $transaction->status,
+                'amount' => $transaction->amount,
+                'operator' => $transaction->operator,
+                'created_at' => $transaction->created_at
+            ]
+        ]);
     }
 }

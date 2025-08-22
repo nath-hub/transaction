@@ -2,6 +2,7 @@
 
 namespace App\Console;
 
+use App\Jobs\CheckAllPendingTransactionsJob;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
 
@@ -12,7 +13,15 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule): void
     {
-        // $schedule->command('inspire')->hourly();
+        $schedule->job(new CheckAllPendingTransactionsJob())
+                 ->everyFiveMinutes()
+                 ->withoutOverlapping(); // Évite les chevauchements
+                //  ->runInBackground();   // Exécution en arrière-plan
+
+        // Optionnel : Nettoyer les vieux jobs échoués chaque jour
+        $schedule->command('queue:prune-failed --hours=48')
+                 ->daily();
+
     }
 
     /**
@@ -21,6 +30,7 @@ class Kernel extends ConsoleKernel
     protected function commands(): void
     {
         $this->load(__DIR__.'/Commands');
+        Commands\CheckPendingTransactions::class;
 
         require base_path('routes/console.php');
     }

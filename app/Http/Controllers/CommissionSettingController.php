@@ -61,6 +61,7 @@ class CommissionSettingController extends Controller
      *     path="/api/transactions/commission-settings",
      *     tags={"Commission Settings"},
      *     summary="Créer une nouvelle règle de commission",
+     *     security={{"bearerAuth":{}}},
      *     @OA\RequestBody(
      *         required=true,
      *         @OA\MediaType(

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Jobs\CheckTransactionStatusJobs;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
@@ -18,6 +19,7 @@ use Illuminate\Support\Str;
  *     @OA\Property(property="transaction_type", type="string", enum={"deposit", "withdrawal"}),
  *     @OA\Property(property="amount", type="number", format="decimal"),
  *     @OA\Property(property="currency_code", type="string"),
+ *     @OA\Property(property="webhook_url", type="string"),
  *     @OA\Property(property="operator_commission", type="number", format="decimal"),
  *     @OA\Property(property="internal_commission", type="number", format="decimal"),
  *     @OA\Property(property="net_amount", type="number", format="decimal"),
@@ -41,7 +43,8 @@ class Transaction extends Model
 {
     use HasFactory;
 
-    
+
+
     public $incrementing = false;
     protected $keyType = 'string';
 
@@ -49,7 +52,7 @@ class Transaction extends Model
         'id'
     ];
 
-     protected static function boot()
+    protected static function boot()
     {
         parent::boot();
 
@@ -57,15 +60,21 @@ class Transaction extends Model
             if (empty($model->id)) {
                 $model->id = (string) Str::uuid();
             }
+
+            // if ($model->status === 'PENDING') {
+            //     // Dispatcher le job de vérification avec un délai initial
+            //     CheckTransactionStatusJobs::dispatch($model->id)
+            //         ->delay(now()->addMinutes(2)); // Première vérification après 2 minutes
+            // }
         });
     }
- 
 
-        public function wallet()
+
+    public function wallet()
     {
         return $this->belongsTo(CompanyWallet::class, 'wallet_id');
     }
- 
+
 
     // Scopes
     public function scopeByStatus($query, $status)
@@ -83,4 +92,5 @@ class Transaction extends Model
         return $query->where('transaction_type', $type);
     }
 
+  
 }

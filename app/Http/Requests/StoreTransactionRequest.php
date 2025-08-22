@@ -46,6 +46,7 @@ class StoreTransactionRequest extends FormRequest
                 'operator_code' => 'required|string|exists:operators,code',
                 'transaction_type' => 'required|in:deposit,withdrawal',
                 'amount' => 'required|numeric|min:0.01|max:999999.99',
+                'webhook_url' => 'required|string',
                 'customer_phone' => 'required|string|max:20',
                 'customer_name' => 'nullable|string|max:100',
                 'metadata' => 'nullable|array'
@@ -59,6 +60,7 @@ class StoreTransactionRequest extends FormRequest
             'amount' => 'required|numeric|min:0.01|max:999999.99',
             'customer_phone' => 'required|string|max:20',
             'customer_name' => 'nullable|string|max:100',
+            'webhook_url' => 'required|string',
             'metadata' => 'nullable|array'
         ];
     }

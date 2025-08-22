@@ -8,12 +8,6 @@
         },
         "version": "1.0.0"
     },
-    "servers": [
-        {
-            "url": "http://localhost:8003",
-            "description": "Transaction Service Server"
-        }
-    ],
     "paths": {
         "/api/transactions/commission-settings": {
             "get": {
@@ -239,7 +233,12 @@
                             }
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
             }
         },
         "/api/transactions/commission-settings/{id}": {
@@ -776,6 +775,10 @@
                                         "type": "string",
                                         "example": "mtn_cm"
                                     },
+                                    "webhook_url": {
+                                        "type": "string",
+                                        "example": "https://example.com"
+                                    },
                                     "transaction_type": {
                                         "type": "string",
                                         "enum": [
@@ -881,7 +884,12 @@
                     "500": {
                         "description": "Erreur serveur lors de la création"
                     }
-                }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
             }
         },
         "/api/transactions/operations/{id}": {

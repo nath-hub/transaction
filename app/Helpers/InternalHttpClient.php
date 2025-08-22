@@ -138,41 +138,118 @@ class InternalHttpClient
             'error_code' => $responseData['code'] ?? null,
         ];
 
-        $result = $this->sendLogToService($logData);
+        try {
+            $result = $this->sendLogToService($logData);
+        } catch (\Exception $e) {
+            // Log l'erreur optionnellement sans interrompre le flux
+            Log::warning('Failed to send log to service: ' . $e->getMessage());
+            $result = false; // ou null selon votre logique
+        }
 
         return $result;
     }
 
+    // SOLUTION 1: Utiliser plusieurs APIs en fallback
     private function getGeoLocation(string $ip): array
     {
+
         if ($ip === '127.0.0.1' || $ip === '::1') {
             return ['country_code' => 'LOCAL'];
         }
 
         $cacheKey = "geoip:{$ip}";
 
-        return Cache::remember($cacheKey, 3600, function () use ($ip) {
-            try {
-                // Utiliser un service de géolocalisation (exemple avec ipapi.co)
-                $response = Http::timeout(3)->get("http://ipapi.co/{$ip}/json/");
-                Log::info($response->json());
-                if ($response->successful()) {
-                    Log::info($response->json());
-                    $data = $response->json();
-                    return [
-                        'country_code' => $data['country_code'] ?? null,
-                        'city' => $data['city'] ?? null,
-                        'region' => $data['region'] ?? null,
-                        'latitude' => $data['latitude'] ?? null,
-                        'longitude' => $data['longitude'] ?? null,
-                    ];
+        return Cache::remember($cacheKey, 86400, function () use ($ip) { // Cache 24h au lieu de 1h
+
+            // Essayer plusieurs APIs dans l'ordre
+            $apis = [
+                [
+                    'name' => 'ipapi.co',
+                    'url' => "http://ipapi.co/{$ip}/json/",
+                    'parser' => 'parseIpapiCo'
+                ],
+                [
+                    'name' => 'ip-api.com',
+                    'url' => "http://ip-api.com/json/{$ip}",
+                    'parser' => 'parseIpApi'
+                ],
+                [
+                    'name' => 'ipinfo.io',
+                    'url' => "http://ipinfo.io/{$ip}/json",
+                    'parser' => 'parseIpInfo'
+                ]
+            ];
+
+            foreach ($apis as $api) {
+
+                try {
+                    $response = Http::timeout(5)->get($api['url']);
+
+
+                    if ($response->successful()) {
+                        $rawBody = $response->body();
+
+                        // Vérifier si c'est une erreur de rate limit
+                        if (
+                            strpos($rawBody, 'RateLimited') !== false ||
+                            strpos($rawBody, 'rate limit') !== false ||
+                            $response->status() === 429
+                        ) {
+                            continue;
+                        }
+
+                        $data = $response->json();
+
+                        $result = $this->{$api['parser']}($data);
+
+                        if (!empty($result['country_code'])) {
+                            return $result;
+                        }
+                    }
+
+                } catch (\Exception $e) {
+
+                    continue;
                 }
-            } catch (\Exception $e) {
-                Log::warning('GeoIP lookup failed', ['ip' => $ip, 'error' => $e->getMessage()]);
             }
 
-            return [];
+            return ['country_code' => 'UNKNOWN'];
         });
+    }
+
+    // Parseurs pour chaque API
+    private function parseIpapiCo(array $data): array
+    {
+        return [
+            'country_code' => $data['country_code'] ?? null,
+            'city' => $data['city'] ?? null,
+            'region' => $data['region'] ?? null,
+            'latitude' => $data['latitude'] ?? null,
+            'longitude' => $data['longitude'] ?? null,
+        ];
+    }
+
+    private function parseIpApi(array $data): array
+    {
+        return [
+            'country_code' => $data['countryCode'] ?? null,
+            'city' => $data['city'] ?? null,
+            'region' => $data['regionName'] ?? null,
+            'latitude' => $data['lat'] ?? null,
+            'longitude' => $data['lon'] ?? null,
+        ];
+    }
+
+    private function parseIpInfo(array $data): array
+    {
+        $location = explode(',', $data['loc'] ?? '');
+        return [
+            'country_code' => $data['country'] ?? null,
+            'city' => $data['city'] ?? null,
+            'region' => $data['region'] ?? null,
+            'latitude' => isset($location[0]) ? floatval($location[0]) : null,
+            'longitude' => isset($location[1]) ? floatval($location[1]) : null,
+        ];
     }
 
 
@@ -230,7 +307,7 @@ class InternalHttpClient
      */
     private function sendLogToService(array $logData)
     {
-        try {
+        // try {
             $logClient = new Client([
                 'timeout' => 10,
                 'connect_timeout' => 5,
@@ -265,25 +342,16 @@ class InternalHttpClient
             // Convertir en tableau associatif (true)
             $decoded = json_decode($body, true);
 
-            // Loguer proprement
-            Log::debug('API usage log sent successfully', [
-                'status_code' => $response->getStatusCode(),
-                'log_endpoint' => $logEndpoint,
-                'response' => $decoded,
-                'data' => $logData
-            ]);
+            // return $response;
 
+        // } catch (Exception $e) {
+        //     Log::error('Failed to send log to service', [
+        //         'error' => $e->getMessage(),
+        //         // 'log_data' => $logData
+        //     ]);
 
-            return $response;
-
-        } catch (Exception $e) {
-            Log::error('Failed to send log to service', [
-                'error' => $e->getMessage(),
-                // 'log_data' => $logData
-            ]);
-
-            return $e;
-        }
+        //     return $e;
+        // }
     }
 
 
@@ -327,12 +395,6 @@ class InternalHttpClient
                 $responseTime = round((microtime(true) - $startTime) * 1000);
 
 
-                Log::info("Microservice request successful", [
-                    'method' => $method,
-                    'url' => $url,
-                    'status_code' => $statusCode,
-                    'attempt' => $attempt + 1
-                ]);
 
                 $result = [
                     'success' => true,
@@ -352,15 +414,6 @@ class InternalHttpClient
 
                 $statusCode = $e->getResponse() ? $e->getResponse()->getStatusCode() : 0;
                 $responseBody = $e->getResponse() ? $e->getResponse()->getBody()->getContents() : '';
-
-                Log::warning("Microservice request failed", [
-                    'method' => $method,
-                    'url' => $url,
-                    'status_code' => $statusCode,
-                    'attempt' => $attempt,
-                    'error' => $e->getMessage(),
-                    'response_body' => $responseBody
-                ]);
 
                 // Ne pas réessayer pour certains codes d'erreur
                 if (in_array($statusCode, [400, 401, 403, 404, 422])) {

@@ -4,16 +4,15 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-return new class extends Migration
-{
+return new class extends Migration {
     /**
      * Run the migrations.
      */
     public function up(): void
     {
         Schema::create('transactions', function (Blueprint $table) {
-           
-            $table->uuid('id')->primary();               
+
+            $table->uuid('id')->primary();
             $table->uuid('entreprise_id');
             $table->uuid('wallet_id');
             $table->uuid('operator_id');
@@ -37,6 +36,24 @@ return new class extends Migration
             $table->string('customer_phone', 20);
             $table->string('customer_name', 100)->nullable();
 
+             // Nombre de tentatives
+            $table->integer('webhook_attempts')->default(0);
+            
+            // Dernière tentative
+            $table->string('payToken')->nullable();
+            
+            // Prochaine tentative (pour le retry)
+            $table->string('access_token')->nullable();
+
+            // Réponse du webhook (pour debug)
+            $table->json('webhook_response')->nullable();
+            // URL de webhook fournie par le client
+            $table->string('webhook_url')->nullable();
+
+            // Statut du webhook
+            $table->enum('webhook_status', ['pending', 'sent', 'failed', 'disabled'])
+                ->default('pending');
+
             // Tracabilité
             $table->timestamp('initiated_at')->useCurrent();
             $table->timestamp('completed_at')->nullable();
@@ -50,8 +67,8 @@ return new class extends Migration
 
             // Timestamps
             $table->timestamps();
- 
-            $table->foreign('wallet_id')->references('id')->on('company_wallets')->onDelete('cascade'); 
+
+            $table->foreign('wallet_id')->references('id')->on('company_wallets')->onDelete('cascade');
 
             // Indexes
             $table->index('created_at', 'idx_transaction_date');
