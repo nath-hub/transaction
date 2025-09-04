@@ -106,10 +106,6 @@
                         "multipart/form-data": {
                             "schema": {
                                 "properties": {
-                                    "entreprise_id": {
-                                        "type": "string",
-                                        "format": "uuid"
-                                    },
                                     "country_id": {
                                         "type": "string",
                                         "format": "uuid"
@@ -146,10 +142,6 @@
                                     },
                                     "is_active": {
                                         "type": "boolean"
-                                    },
-                                    "created_by": {
-                                        "type": "string",
-                                        "format": "uuid"
                                     }
                                 },
                                 "type": "object"
@@ -360,15 +352,6 @@
                         "application/json": {
                             "schema": {
                                 "properties": {
-                                    "entreprise_id": {
-                                        "type": "string"
-                                    },
-                                    "country_id": {
-                                        "type": "string"
-                                    },
-                                    "operator_id": {
-                                        "type": "string"
-                                    },
                                     "transaction_type": {
                                         "type": "string"
                                     },
@@ -1212,6 +1195,107 @@
                     }
                 }
             }
+        },
+        "/api/transactions/remboursement": {
+            "post": {
+                "tags": [
+                    "Transactions"
+                ],
+                "summary": "Effectuer un remboursement",
+                "description": "Process refund for a transaction",
+                "operationId": "1db1f655a0f1476f24444618db82e606",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/X-API-Public-Key"
+                    },
+                    {
+                        "$ref": "#/components/parameters/X-API-Private-Key"
+                    },
+                    {
+                        "$ref": "#/components/parameters/X-API-UUID"
+                    },
+                    {
+                        "$ref": "#/components/parameters/X-API-Environment"
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "transaction_id",
+                                    "refund_amount",
+                                    "reason"
+                                ],
+                                "properties": {
+                                    "transaction_id": {
+                                        "description": "ID de la transaction à rembourser",
+                                        "type": "string",
+                                        "format": "uuid"
+                                    },
+                                    "refund_amount": {
+                                        "description": "Montant à rembourser",
+                                        "type": "number",
+                                        "format": "decimal"
+                                    },
+                                    "reason": {
+                                        "description": "Raison du remboursement",
+                                        "type": "string"
+                                    },
+                                    "operator": {
+                                        "description": "Opérateur pour le remboursement",
+                                        "type": "string",
+                                        "enum": [
+                                            "OM",
+                                            "MOMO"
+                                        ]
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Remboursement effectué avec succès",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "refund_transaction_id": {
+                                            "type": "string"
+                                        },
+                                        "operator_response": {
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Données invalides"
+                    },
+                    "403": {
+                        "description": "Solde insuffisant ou transaction non éligible"
+                    },
+                    "404": {
+                        "description": "Transaction non trouvée"
+                    },
+                    "500": {
+                        "description": "Erreur serveur"
+                    }
+                }
+            }
         }
     },
     "components": {
@@ -1251,6 +1335,9 @@
                         "format": "decimal"
                     },
                     "currency_code": {
+                        "type": "string"
+                    },
+                    "webhook_url": {
                         "type": "string"
                     },
                     "operator_commission": {

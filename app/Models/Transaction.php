@@ -60,12 +60,7 @@ class Transaction extends Model
             if (empty($model->id)) {
                 $model->id = (string) Str::uuid();
             }
-
-            // if ($model->status === 'PENDING') {
-            //     // Dispatcher le job de vérification avec un délai initial
-            //     CheckTransactionStatusJobs::dispatch($model->id)
-            //         ->delay(now()->addMinutes(2)); // Première vérification après 2 minutes
-            // }
+  
         });
     }
 

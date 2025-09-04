@@ -5,10 +5,12 @@ namespace App\Http\Controllers;
 use App\Helpers\InternalHttpClient;
 use App\Http\Requests\StoreTransactionRequest;
 use App\Http\Services\OperatorService;
+use App\Http\Services\RemboursementService;
 use App\Models\Transaction;
 use App\Http\Services\TransactionService;
 use App\Jobs\CheckPaymentStatusJob;
 use App\Jobs\CheckTransactionStatusJobs;
+use App\Models\CommissionSetting;
 use App\Models\PaymentJobs;
 use Exception;
 use Illuminate\Http\JsonResponse;
@@ -213,35 +215,33 @@ class TransactionController extends Controller
     {
 
 
-        // try {
-        $request->validated();
+        try {
+            $request->validated();
 
-        $transactionService = new TransactionService();
-        return $result = $transactionService->createTransaction($request, $request->all());
+            $transactionService = new TransactionService();
+            return $result = $transactionService->createTransaction($request, $request->all());
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Transaction créée avec succès',
-            'data' => [
-                'transaction_id' => $result['transaction']->id,
-                'status' => $result['transaction']->status,
-                'amount' => $result['transaction']->amount,
-                'net_amount' => $result['transaction']->net_amount,
-                'currency' => $result['transaction']->currency_code,
-                'reference' => $result['wallet_movement']->reference,
-                'wallet_balance' => $result['wallet']->balance,
-                'created_at' => $result['transaction']->created_at
-            ]
-        ], 201);
-
-
-        // } catch (\Exception $e) {
-        //     return response()->json([
-        //         'success' => false,
-        //         'message' => 'Erreur lors de la création de la transaction',
-        //         'error' => $e->getMessage()
-        //     ], 500);
-        // }
+            return response()->json([
+                'success' => true,
+                'message' => 'Transaction créée avec succès',
+                'data' => [
+                    'transaction_id' => $result['transaction']->id,
+                    'status' => $result['transaction']->status,
+                    'amount' => $result['transaction']->amount,
+                    'net_amount' => $result['transaction']->net_amount,
+                    'currency' => $result['transaction']->currency_code,
+                    'reference' => $result['wallet_movement']->reference,
+                    'wallet_balance' => $result['wallet']->balance,
+                    'created_at' => $result['transaction']->created_at
+                ]
+            ], 201);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la création de la transaction',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 
 
@@ -344,7 +344,6 @@ class TransactionController extends Controller
                 'message' => 'Transaction mise à jour avec succès',
                 'data' => $transaction->load(['wallet', 'operator'])
             ]);
-
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -406,7 +405,6 @@ class TransactionController extends Controller
                 'success' => true,
                 'message' => 'Transaction supprimée avec succès'
             ]);
-
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -478,7 +476,7 @@ class TransactionController extends Controller
 
         // Logic to retry transaction
         $transaction->update([
-            'status' => 'FAILED', // Reset to pending
+            'status' => 'FAILED',
             'failure_reason' => null,
             'initiated_at' => now()
         ]);
@@ -490,23 +488,351 @@ class TransactionController extends Controller
     }
 
 
-    function getJobs()
+    /**
+     * Process refund for a transaction
+     * 
+     * @OA\Post(
+     *     path="/api/transactions/remboursement",
+     *     tags={"Transactions"},
+     *     summary="Effectuer un remboursement",
+     *     @OA\Parameter(ref="#/components/parameters/X-API-Public-Key"),
+     *     @OA\Parameter(ref="#/components/parameters/X-API-Private-Key"),
+     *     @OA\Parameter(ref="#/components/parameters/X-API-UUID"),
+     *     @OA\Parameter(ref="#/components/parameters/X-API-Environment"),
+     *     @OA\RequestBody(
+     *         required=true,
+     *         @OA\JsonContent(
+     *             required={"transaction_id", "refund_amount", "reason"},
+     *             @OA\Property(property="transaction_id", type="string", format="uuid", description="ID de la transaction à rembourser"),
+     *             @OA\Property(property="refund_amount", type="number", format="decimal", description="Montant à rembourser"),
+     *             @OA\Property(property="reason", type="string", description="Raison du remboursement"),
+     *             @OA\Property(property="operator", type="string", enum={"OM", "MOMO"}, description="Opérateur pour le remboursement")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Remboursement effectué avec succès",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="success", type="boolean"),
+     *             @OA\Property(property="message", type="string"),
+     *             @OA\Property(property="refund_transaction_id", type="string"),
+     *             @OA\Property(property="operator_response", type="object")
+     *         )
+     *     ),
+     *     @OA\Response(response=400, description="Données invalides"),
+     *     @OA\Response(response=403, description="Solde insuffisant ou transaction non éligible"),
+     *     @OA\Response(response=404, description="Transaction non trouvée"),
+     *     @OA\Response(response=500, description="Erreur serveur")
+     * )
+     */
+    public function remboursement(Request $request)
     {
-        $trans = Transaction::where('id', 'd188408c-e360-49bb-b0c1-8d57bd31bf47')->first();
-        // $op = new OperatorService();
-
-        // $om = "OM";
-
-        // return $op->checkPaymentStatus($om, $trans);
-        
-        CheckTransactionStatusJobs::dispatch($trans->id);
-
-        // Retourner une réponse JSON valide
-        return response()->json([
-            'message' => 'Job de vérification dispatché avec succès',
-            'transaction_id' => $trans->id,
-            'status' => $trans->status
-        ], 202);
+        // try {
+            // 1. Validation des données d'entrée
+            $validated = $request->validate([
+                'transaction_id' => 'required|string|uuid',
+                'refund_amount' => 'required|numeric|min:0.01',
+                'reason' => 'required|string|max:255',
+                'operator' => 'required|string|in:OM,MOMO'
+            ]);
  
+            // 2. Récupérer la transaction originale
+            $originalTransaction = Transaction::with('wallet')->find($validated['transaction_id']);
+
+            if (!$originalTransaction) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Transaction non trouvée',
+                    'error_code' => 'TRANSACTION_NOT_FOUND'
+                ], 404);
+            }
+
+            // 3. Vérifications de sécurité et business rules
+            $securityChecks = $this->validateRefundEligibility($originalTransaction, $validated);
+            if (!$securityChecks['valid']) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $securityChecks['message'],
+                    'error_code' => $securityChecks['error_code']
+                ], $securityChecks['status_code']);
+            }
+
+            // 4. Vérifier le solde de l'entreprise
+            $wallet = $originalTransaction->wallet;
+            if (!$wallet) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Portefeuille de l\'entreprise non trouvé',
+                    'error_code' => 'WALLET_NOT_FOUND'
+                ], 404);
+            }
+
+            // 5. Vérification du solde suffisant
+            if ($wallet->balance < $validated['refund_amount']) {
+
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Solde insuffisant dans le portefeuille de l\'entreprise',
+                    'error_code' => 'INSUFFICIENT_BALANCE',
+                    'details' => [
+                        'current_balance' => $wallet->balance,
+                        'requested_amount' => $validated['refund_amount']
+                    ]
+                ], 403);
+            }
+
+            // 6. Vérifier les limites quotidiennes/mensuelles si configurées
+            $limitsCheck = $this->checkWalletLimits($wallet, $validated['refund_amount']);
+            if (!$limitsCheck['valid']) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $limitsCheck['message'],
+                    'error_code' => 'LIMIT_EXCEEDED'
+                ], 403);
+            }
+
+            // 7. Créer l'utilisateur pour le remboursement (basé sur la transaction originale)
+            $refundUser = (object) [
+                'phone' => $originalTransaction->customer_phone,
+                'name' => $originalTransaction->customer_name ?? 'Client',
+                'id' => $originalTransaction->user_id
+            ];
+
+            // 8. Initier le remboursement via le service
+            $remboursementService = new RemboursementService();
+            $refundResult = $remboursementService->initiateRemboursement(
+                $validated['operator'],
+                $refundUser,
+                $validated['refund_amount'],
+                $originalTransaction->customer_phone
+            );
+
+            // // 9. Traiter la réponse du service de remboursement
+            // if (!isset($refundResult['success']) || !$refundResult['success']) {
+
+            //     return response()->json([
+            //         'success' => false,
+            //         'message' => $refundResult['message'] ?? 'Échec du remboursement',
+            //         'error_code' => 'REFUND_SERVICE_ERROR',
+            //         'details' => $refundResult
+            //     ], $refundResult['status'] ?? 500);
+            // }
+
+            // 5. Calculer les commissions
+            $commissions = $this->calculateCommissions(
+                $validated['refund_amount'],
+                $validated['operator'],
+                'withdrawal'
+            );
+
+            // 10. Créer la transaction de remboursement
+            $refundTransaction = $this->createRefundTransaction($originalTransaction, $validated, $refundResult, $commissions);
+
+            // 11. Mettre à jour le solde du portefeuille
+            $newBalance = $wallet->balance - $validated['refund_amount'];
+            $wallet->update(['balance' => $newBalance]);
+
+            // 12. Enregistrer le mouvement de portefeuille
+            $this->recordWalletMovement($wallet, $refundTransaction, $validated['refund_amount'], 'debit');
+
+            // 13. Mettre à jour le statut de la transaction originale si remboursement complet
+            if ($validated['refund_amount'] >= $originalTransaction->amount) {
+                $originalTransaction->update(['status' => 'REFUNDED']);
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Remboursement effectué avec succès',
+                'data' => [
+                    'refund_transaction_id' => $refundTransaction->id,
+                    'refund_amount' => $validated['refund_amount'],
+                    'operator_response' => $refundResult,
+                    'new_wallet_balance' => $newBalance,
+                    'refund_status' => $refundTransaction->status
+                ]
+            ]);
+        // } catch (\Illuminate\Validation\ValidationException $e) {
+        //     return response()->json([
+        //         'success' => false,
+        //         'message' => 'Données de validation invalides',
+        //         'error_code' => 'VALIDATION_ERROR',
+        //         'errors' => $e->errors()
+        //     ], 422);
+        // } catch (Exception $e) {
+
+        //     return response()->json([
+        //         'success' => false,
+        //         'message' => 'Erreur interne lors du remboursement',
+        //         'error_code' => 'INTERNAL_ERROR'
+        //     ], 500);
+        // }
+    }
+
+
+    /**
+     * Calculer les commissions
+     */
+    private function calculateCommissions($amount, $operatorId, $transactionType)
+    {
+        $commissionSetting = CommissionSetting::where('operator_id', $operatorId)
+            ->where('transaction_type', $transactionType)
+            ->where('is_active', true)
+            ->first();
+
+        if (!$commissionSetting) {
+            return [
+                'operator_commission' => 0,
+                'internal_commission' => 1
+            ];
+        }
+
+        $operatorCommission = ($amount * $commissionSetting->commission_value) / 100;
+        $internalCommission = ($amount * 1) / 100;
+
+        return [
+            'operator_commission' => round($operatorCommission, 2),
+            'internal_commission' => round($internalCommission, 2),
+            'commission' => $commissionSetting
+        ];
+    }
+
+    /**
+     * Validate if transaction is eligible for refund
+     */
+    private function validateRefundEligibility($transaction, $validated)
+    {
+        // Vérifier que la transaction est réussie
+        if ($transaction->status !== 'SUCCESSFULL') {
+            return [
+                'valid' => false,
+                'message' => 'Seules les transactions réussies peuvent être remboursées',
+                'error_code' => 'TRANSACTION_NOT_SUCCESSFUL',
+                'status_code' => 403
+            ];
+        }
+
+        // Vérifier que le montant du remboursement ne dépasse pas le montant original
+        if ($validated['refund_amount'] > $transaction->amount) {
+            return [
+                'valid' => false,
+                'message' => 'Le montant du remboursement ne peut pas dépasser le montant de la transaction originale',
+                'error_code' => 'REFUND_AMOUNT_EXCEEDS_ORIGINAL',
+                'status_code' => 400
+            ];
+        }
+
+        // Vérifier que la transaction n'est pas trop ancienne (ex: 30 jours)
+        $maxRefundDays = 60;
+        if ($transaction->completed_at && $transaction->completed_at->diffInDays(now()) > $maxRefundDays) {
+            return [
+                'valid' => false,
+                'message' => "Les remboursements ne sont autorisés que dans les {$maxRefundDays} jours suivant la transaction",
+                'error_code' => 'REFUND_PERIOD_EXPIRED',
+                'status_code' => 403
+            ];
+        }
+
+        // Vérifier qu'il n'y a pas déjà eu de remboursement complet
+        if ($transaction->status === 'REFUNDED') {
+            return [
+                'valid' => false,
+                'message' => 'Cette transaction a déjà été remboursée',
+                'error_code' => 'ALREADY_REFUNDED',
+                'status_code' => 403
+            ];
+        }
+
+        return ['valid' => true];
+    }
+
+    /**
+     * Check wallet limits for refund
+     */
+    private function checkWalletLimits($wallet, $amount)
+    {
+        // Vérifier les limites quotidiennes si configurées
+        if ($wallet->daily_limit) {
+            $todayRefunds = Transaction::where('wallet_id', $wallet->id)
+                ->where('transaction_type', 'refund')
+                ->whereDate('created_at', today())
+                ->sum('amount');
+
+            if (($todayRefunds + $amount) > $wallet->daily_limit) {
+                return [
+                    'valid' => false,
+                    'message' => 'Limite quotidienne de remboursement dépassée'
+                ];
+            }
+        }
+
+        // Vérifier les limites mensuelles si configurées
+        if ($wallet->monthly_limit) {
+            $monthlyRefunds = Transaction::where('wallet_id', $wallet->id)
+                ->where('transaction_type', 'refund')
+                ->whereMonth('created_at', now()->month)
+                ->whereYear('created_at', now()->year)
+                ->sum('amount');
+
+            if (($monthlyRefunds + $amount) > $wallet->monthly_limit) {
+                return [
+                    'valid' => false,
+                    'message' => 'Limite mensuelle de remboursement dépassée'
+                ];
+            }
+        }
+
+        return ['valid' => true];
+    }
+
+    /**
+     * Create refund transaction record
+     */
+    private function createRefundTransaction($originalTransaction, $validated, $refundResult, $commissions)
+    {
+        return Transaction::create([
+            'entreprise_id' => $originalTransaction->entreprise_id,
+            'wallet_id' => $originalTransaction->wallet_id,
+            'operator_id' => $originalTransaction->operator_id,
+            'user_id' => $originalTransaction->user_id,
+            'transaction_type' => 'withdrawal',
+            'amount' => $validated['refund_amount'],
+            'currency_code' => $originalTransaction->currency_code,
+            'webhook_url' => $originalTransaction->webhook_url,
+            'operator_commission' => $commissions['operator_commission'],
+            'internal_commission' => $commissions['internal_commission'],
+            'net_amount' => $validated['refund_amount'] - $commissions['operator_commission'] - $commissions['internal_commission'],
+            'status' => $refundResult['ResponseMetadata']['HTTPStatusCode'] == 200 ? 'SUCCESSFULL' : 'FAILED',
+            'operator_status' => $refundResult['operator_status'] ?? null,
+            'operator_transaction_id' => $refundResult['operator_transaction_id'] ?? null,
+            'customer_phone' => $originalTransaction->customer_phone,
+            'customer_name' => $originalTransaction->customer_name,
+            'initiated_at' => now(),
+            'payToken' => $refundResult['MessageId'] ?? null,
+            'api_key_used' => $originalTransaction->api_key_used,
+            'ip_address' => request()->ip() ?? null,    
+            'user_agent' => request()->userAgent() ?? null,
+            'metadata' => $refundResult ?? null,
+            'failure_reason' => $refundResult['ResponseMetadata']['HTTPStatusCode'] == 200 ? null : ($refundResult['message'] ?? 'Échec du remboursement')
+        ]);
+
+    }
+
+
+    /**
+     * Record wallet movement for refund
+     */
+    private function recordWalletMovement($wallet, $transaction, $amount, $type)
+    {
+        \App\Models\WalletMovement::create([
+            'wallet_id' => $wallet->id,
+            'transaction_id' => $transaction->id,
+            'movement_type' => $type,
+            'amount' => $amount,
+            'balance_before' => $wallet->balance,
+            'balance_after' => $wallet->balance - $amount,
+            'description' => "Remboursement vers {$transaction->customer_phone}",
+            'reference' => 'REF-' . strtoupper(Str::random(10)),
+            'created_by' => $transaction->user_id
+        ]);
     }
 }

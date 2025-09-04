@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Helpers\InternalHttpClient;
 use App\Http\Controllers\Controller;
 use App\Models\CommissionSetting;
 use Illuminate\Http\Request;
@@ -66,8 +67,7 @@ class CommissionSettingController extends Controller
      *         required=true,
      *         @OA\MediaType(
      *             mediaType="multipart/form-data",
-     *             @OA\Schema(
-     *                 @OA\Property(property="entreprise_id", type="string", format="uuid"),
+     *             @OA\Schema( 
      *                 @OA\Property(property="country_id", type="string", format="uuid"),
      *                 @OA\Property(property="operator_id", type="string", format="uuid"),
      *                 @OA\Property(property="transaction_type", type="string", enum={"deposit", "withdrawal"}),
@@ -76,7 +76,6 @@ class CommissionSettingController extends Controller
      *                 @OA\Property(property="min_amount", type="number", format="float"),
      *                 @OA\Property(property="max_amount", type="number", format="float"),
      *                 @OA\Property(property="is_active", type="boolean"),
-     *                 @OA\Property(property="created_by", type="string", format="uuid")
      *             )
      *         )
      *     ),
@@ -119,7 +118,6 @@ class CommissionSettingController extends Controller
     public function store(Request $request)
     {
         $data = $request->validate([
-            'entreprise_id' => 'required|uuid|exists:entreprises,id',
             'country_id' => 'required|uuid|exists:countries,id',
             'operator_id' => 'required|uuid|exists:operators,id',
             'transaction_type' => 'required|in:deposit,withdrawal',
@@ -127,19 +125,35 @@ class CommissionSettingController extends Controller
             'commission_value' => 'required|numeric|min:0',
             'min_amount' => 'nullable|numeric|min:0',
             'max_amount' => 'nullable|numeric|gte:min_amount',
-            'is_active' => 'boolean', 
+            'is_active' => 'required',
         ]);
         $data['id'] = (string) Str::uuid();
-        if ($data['is_active']) {
-            $data['is_active'] = 1;
-        } else {
-            $data['is_active'] = 0;
-        }
+        $data['is_active'] = $data['is_active'] ? 1 : 0;
 
-        $data['created_by'] = auth()->user()->id;
+        $data['created_by'] = auth()->id();
 
-        $commission = CommissionSetting::create($data);
-        return response()->json($commission, 201);
+        // 2. Vérifier si le pays est autorisé
+        $authServiceUrl = config('services.services_user.url');
+
+        $httpClient = new InternalHttpClient();
+
+        $prodCountry = $httpClient->get($request, $authServiceUrl, 'api/countries/' . $request->country_id, ['read:users']);
+
+        $prodOperator = $httpClient->get($request, $authServiceUrl, 'api/operators/' . $request->operator_id, ['read:users']);
+
+
+        // 🔹 Insérer dans sandbox
+        $sandboxCommission = CommissionSetting::on('mysql_sandbox')->create($data);
+
+        // 🔹 Insérer dans prod avec les bons IDs
+        $prodData = $data;
+        $prodData['id'] = (string) Str::uuid();
+        $prodData['country_id'] = $prodCountry['data']['id'];
+        $prodData['operator_id'] = $prodOperator['data']['id'];
+
+        $prodCommission = CommissionSetting::on('mysql_prod')->create($prodData);
+
+        return response()->json($sandboxCommission, 201);
     }
 
 
@@ -211,10 +225,7 @@ class CommissionSettingController extends Controller
      *         required=true,
      *         @OA\MediaType(
      *             mediaType="application/json",
-     *             @OA\Schema(
-     *                 @OA\Property(property="entreprise_id", type="string"),
-     *                 @OA\Property(property="country_id", type="string"),
-     *                 @OA\Property(property="operator_id", type="string"),
+     *             @OA\Schema( 
      *                 @OA\Property(property="transaction_type", type="string"),
      *                 @OA\Property(property="commission_type", type="string"),
      *                 @OA\Property(property="commission_value", type="number"),
@@ -263,9 +274,41 @@ class CommissionSettingController extends Controller
      */
     public function update(Request $request, string $id)
     {
-        $commission = CommissionSetting::findOrFail($id);
-        $commission->update($request->all());
-        return response()->json($commission);
+        $data = $request->validate([
+            'transaction_type' => 'sometimes|required|in:deposit,withdrawal',
+            'commission_type' => 'nullable|in:percentage,fixed',
+            'commission_value' => 'sometimes|required|numeric|min:0',
+            'min_amount' => 'nullable|numeric|min:0',
+            'max_amount' => 'nullable|numeric|gte:min_amount',
+            'is_active' => 'sometimes|required|boolean',
+        ]);
+
+
+        if (isset($data['is_active'])) {
+            $data['is_active'] = $data['is_active'] ? 1 : 0;
+        }
+
+        // Récupérer la commission dans sandbox
+        $sandboxCommission = CommissionSetting::on('mysql_sandbox')->findOrFail($id);
+        $sandboxCommission->update($data);
+
+        $authServiceUrl = config('services.services_user.url');
+        $httpClient = new InternalHttpClient();
+
+        $prodCountry = $httpClient->get($request, $authServiceUrl, 'api/countries/' . $sandboxCommission->country_id, ['read:users']);
+        $prodOperator = $httpClient->get($request, $authServiceUrl, 'api/operators/' . $sandboxCommission->operator_id, ['read:users']);
+
+        // Trouver et mettre à jour dans prod
+        $prodCommission = CommissionSetting::on('mysql_prod')
+            ->where('country_id', $prodCountry['data']['country_id'])
+            ->where('operator_id', $prodOperator['data']['operator_id'])
+            ->first();
+
+        if ($prodCommission) {
+            $prodCommission->update($data);
+        }
+
+        return response()->json($sandboxCommission);
     }
 
 

@@ -47,5 +47,8 @@ return [
     'services_transactions' => [
         'url' => env('TRANSACTION_INTERFACE', 'http://inventory-service:8002'),
     ],
+    'services_notifications' => [
+        'url' => env('NOTIFICATION_INTERFACE', 'http://inventory-service:8002'),
+    ]
  
 ];

@@ -1,8 +1,9 @@
 <?php
 
 use App\Http\Controllers\CommissionSettingController;
-use App\Http\Controllers\TransactionController; 
+use App\Http\Controllers\TransactionController;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -33,14 +34,21 @@ Route::prefix('transactions')->group(function () {
         return \App\Models\Transaction::where('wallet_id', $walletId)->get();
     });
 
-    Route::prefix('commission-settings')->group(function () {
-        Route::get('/', [CommissionSettingController::class, 'index']);
-        Route::post('/', [CommissionSettingController::class, 'store']);
-        Route::get('/{id}', [CommissionSettingController::class, 'show']);
-        Route::put('/{id}', [CommissionSettingController::class, 'update']);
-        Route::delete('/{id}', [CommissionSettingController::class, 'destroy']);
+    Route::middleware('api_key_auth')->group(function () {
+        Route::post('/remboursement', [TransactionController::class, 'remboursement']);
     });
 
-    Route::get('getjobs', [TransactionController::class, 'getJobs']);
- 
+    Route::prefix('commission-settings')->group(function () {
+        Route::get('/', [CommissionSettingController::class, 'index']);
+        Route::post('/', [CommissionSettingController::class, 'store'])->middleware('auth:sanctum');
+        Route::get('/{id}', [CommissionSettingController::class, 'show']);
+        Route::put('/{id}', [CommissionSettingController::class, 'update'])->middleware('auth:sanctum');
+        Route::delete('/{id}', [CommissionSettingController::class, 'destroy'])->middleware('auth:sanctum');
+    });
+});
+
+
+Route::post('/webhook/receive', function (Request $request) {
+    Log::info('Webhook received:', $request->all());
+    // return response()->json(['message' => 'Webhook received', 'data' => $request->all()], 200);
 });

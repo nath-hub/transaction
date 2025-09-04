@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('commission_settings', function (Blueprint $table) {
            $table->uuid('id')->primary();
-            $table->uuid('entreprise_id'); // Clé étrangère vers entreprise
+        
             $table->uuid('country_id'); // Clé étrangère vers countries
             $table->uuid('operator_id'); // Clé étrangère vers operators
 
